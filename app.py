@@ -5,7 +5,6 @@ from PIL import Image
 import tempfile
 import random
 import pandas as pd
-from io import BytesIO
 
 # ---------------- PAGE CONFIG ----------------
 
@@ -15,19 +14,218 @@ st.set_page_config(
     layout="wide"
 )
 
-# ---------------- TITLE ----------------
+# ---------------- CUSTOM CSS ----------------
 
-st.title("🛡️ AI Fraud Detection System")
-st.markdown("## Real-time Anomaly Detection for Banking & Underwriting")
+st.markdown("""
+<style>
 
-# ---------------- FILE UPLOAD ----------------
+/* Main Background */
 
-uploaded_file = st.file_uploader(
-    "Upload PDF or Image",
-    type=["pdf", "png", "jpg", "jpeg"]
+.stApp {
+    background: linear-gradient(
+        135deg,
+        #0f172a,
+        #111827,
+        #1e293b
+    );
+    color: white;
+}
+
+/* Main Container */
+
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+}
+
+/* Headings */
+
+h1 {
+    color: #ffffff;
+    font-size: 3.5rem !important;
+    font-weight: 800;
+    text-align: center;
+}
+
+h2, h3 {
+    color: #38bdf8;
+    font-weight: 700;
+}
+
+/* Sidebar */
+
+section[data-testid="stSidebar"] {
+    background: linear-gradient(
+        180deg,
+        #111827,
+        #0f172a
+    );
+    border-right: 1px solid #334155;
+}
+
+/* Buttons */
+
+.stButton > button {
+    width: 100%;
+    border-radius: 15px;
+    height: 3.2em;
+    border: none;
+    background: linear-gradient(
+        90deg,
+        #06b6d4,
+        #3b82f6
+    );
+    color: white;
+    font-size: 18px;
+    font-weight: 700;
+    transition: 0.3s;
+    box-shadow: 0px 0px 15px rgba(59,130,246,0.5);
+}
+
+.stButton > button:hover {
+    transform: scale(1.03);
+    background: linear-gradient(
+        90deg,
+        #3b82f6,
+        #06b6d4
+    );
+}
+
+/* Login Box */
+
+.login-box {
+    background: rgba(17, 24, 39, 0.9);
+    padding: 50px;
+    border-radius: 25px;
+    margin-top: 80px;
+    box-shadow: 0px 0px 30px rgba(0,0,0,0.5);
+    border: 1px solid #334155;
+}
+
+/* Cards */
+
+.metric-card {
+    background: linear-gradient(
+        145deg,
+        #1e293b,
+        #0f172a
+    );
+    padding: 25px;
+    border-radius: 20px;
+    text-align: center;
+    color: white;
+    border: 1px solid #334155;
+    box-shadow: 0px 0px 20px rgba(0,0,0,0.4);
+}
+
+/* Input Boxes */
+
+.stTextInput > div > div > input {
+    background-color: #1e293b;
+    color: white;
+    border-radius: 12px;
+    border: 1px solid #475569;
+}
+
+/* Upload Box */
+
+[data-testid="stFileUploader"] {
+    background-color: #111827;
+    padding: 20px;
+    border-radius: 20px;
+    border: 2px dashed #38bdf8;
+}
+
+/* Tabs */
+
+button[data-baseweb="tab"] {
+    background-color: #1e293b;
+    color: white;
+    border-radius: 10px;
+    margin-right: 10px;
+    padding: 10px 20px;
+}
+
+/* Progress Bar */
+
+.stProgress > div > div > div > div {
+    background: linear-gradient(
+        90deg,
+        #06b6d4,
+        #3b82f6
+    );
+}
+
+/* Tables */
+
+[data-testid="stDataFrame"] {
+    border-radius: 15px;
+    overflow: hidden;
+    border: 1px solid #334155;
+}
+
+/* Alerts */
+
+.stAlert {
+    border-radius: 15px;
+}
+
+/* Footer Hide */
+
+footer {
+    visibility: hidden;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------- LOGIN SYSTEM ----------------
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if not st.session_state.logged_in:
+
+    st.markdown("<div class='login-box'>", unsafe_allow_html=True)
+
+    st.title("🔐 Secure Banking Login")
+
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+
+        if username == "admin" and password == "admin123":
+            st.session_state.logged_in = True
+            st.rerun()
+
+        else:
+            st.error("Invalid credentials")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.stop()
+
+# ---------------- MAIN TITLE ----------------
+
+st.title("🛡️ AI Fraud Detection Dashboard")
+st.markdown("### Real-time Banking & Underwriting Intelligence")
+
+# ---------------- SIDEBAR ----------------
+
+st.sidebar.title("🏦 Banking Dashboard")
+
+page = st.sidebar.radio(
+    "Navigation",
+    [
+        "Single Document Analysis",
+        "Compare Two Documents"
+    ]
 )
 
-# ---------------- KEYWORDS ----------------
+# ---------------- OCR ----------------
+
+reader = easyocr.Reader(['en'])
 
 suspicious_words = [
     "edited",
@@ -40,23 +238,13 @@ suspicious_words = [
     "suspicious"
 ]
 
-# ---------------- OCR ----------------
+# ---------------- FUNCTION ----------------
 
-reader = easyocr.Reader(['en'])
-
-# ---------------- MAIN ----------------
-
-if uploaded_file:
-
-    st.success("✅ File uploaded successfully")
+def analyze_document(uploaded_file):
 
     extracted_text = ""
 
-    # ---------- PDF ----------
-
     if uploaded_file.type == "application/pdf":
-
-        st.subheader("📄 PDF Analysis")
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
             tmp.write(uploaded_file.read())
@@ -64,184 +252,200 @@ if uploaded_file:
 
         doc = fitz.open(pdf_path)
 
-        # Metadata
         metadata = doc.metadata
-
-        st.subheader("📑 PDF Metadata")
-
-        metadata_df = pd.DataFrame({
-            "Property": list(metadata.keys()),
-            "Value": list(metadata.values())
-        })
-
-        st.dataframe(metadata_df)
 
         for page in doc:
             extracted_text += page.get_text()
 
-    # ---------- IMAGE ----------
-
     else:
 
-        st.subheader("🖼️ Image Analysis")
-
         image = Image.open(uploaded_file)
-
-        st.image(image, caption="Uploaded Image", width=400)
 
         result = reader.readtext(image)
 
         extracted_text = " ".join([text[1] for text in result])
 
-    # ---------------- HIGHLIGHT SUSPICIOUS WORDS ----------------
-
-    highlighted_text = extracted_text
+        metadata = {
+            "type": "Image File"
+        }
 
     found = []
+
+    highlighted_text = extracted_text
 
     for word in suspicious_words:
 
         if word.lower() in extracted_text.lower():
+
             found.append(word)
 
             highlighted_text = highlighted_text.replace(
                 word,
-                f"🔴 **{word.upper()}**"
+                f"🔴 {word.upper()}"
             )
 
-    # ---------------- SCORES ----------------
-
-    fraud_score = min(len(found) * 18 + random.randint(5, 15), 100)
+    fraud_score = min(len(found) * 20 + random.randint(5, 15), 100)
 
     authenticity_score = 100 - fraud_score
 
-    # ---------------- ALERT BANNER ----------------
+    return {
+        "text": extracted_text,
+        "highlighted_text": highlighted_text,
+        "metadata": metadata,
+        "fraud_score": fraud_score,
+        "authenticity_score": authenticity_score,
+        "findings": found
+    }
 
-    if fraud_score > 70:
-        st.error("🚨 HIGH RISK DOCUMENT DETECTED")
-    elif fraud_score > 30:
-        st.warning("⚠️ MEDIUM RISK DOCUMENT")
-    else:
-        st.success("✅ LOW RISK DOCUMENT")
+# ---------------- SINGLE ANALYSIS ----------------
 
-    # ---------------- EXTRACTED TEXT ----------------
+if page == "Single Document Analysis":
 
-    st.subheader("📝 Extracted Text")
+    st.subheader("📄 Upload Document")
 
-    if extracted_text.strip() == "":
-        st.warning("No readable text detected")
-    else:
-        st.markdown(highlighted_text)
+    uploaded_file = st.file_uploader(
+        "Upload PDF or Image",
+        type=["pdf", "png", "jpg", "jpeg"]
+    )
 
-    # ---------------- FRAUD ANALYSIS ----------------
+    if uploaded_file:
 
-    st.subheader("🚨 Fraud Risk Analysis")
+        result = analyze_document(uploaded_file)
 
-    st.progress(fraud_score / 100)
+        # ALERT
+
+        if result["fraud_score"] > 70:
+            st.error("🚨 HIGH RISK DOCUMENT DETECTED")
+        elif result["fraud_score"] > 30:
+            st.warning("⚠️ MEDIUM RISK DOCUMENT")
+        else:
+            st.success("✅ LOW RISK DOCUMENT")
+
+        # METRICS
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric("Fraud Score", f"{result['fraud_score']}%")
+
+        with col2:
+            st.metric("Authenticity", f"{result['authenticity_score']}%")
+
+        with col3:
+            st.metric("Suspicious Indicators", len(result["findings"]))
+
+        # PROGRESS
+
+        st.progress(result["fraud_score"] / 100)
+
+        # TABS
+
+        tab1, tab2, tab3 = st.tabs([
+            "📝 Extracted Text",
+            "📑 Metadata",
+            "🤖 AI Analysis"
+        ])
+
+        with tab1:
+            st.markdown(result["highlighted_text"])
+
+        with tab2:
+
+            metadata_df = pd.DataFrame({
+                "Property": list(result["metadata"].keys()),
+                "Value": list(result["metadata"].values())
+            })
+
+            st.dataframe(metadata_df)
+
+        with tab3:
+
+            if result["findings"]:
+
+                st.error(
+                    f"Suspicious keywords detected: {result['findings']}"
+                )
+
+            else:
+
+                st.success("No suspicious indicators found")
+
+# ---------------- COMPARE DOCUMENTS ----------------
+
+if page == "Compare Two Documents":
+
+    st.subheader("📂 Compare Two Documents")
 
     col1, col2 = st.columns(2)
 
     with col1:
-        st.metric("Fraud Risk Score", f"{fraud_score}%")
+        file1 = st.file_uploader(
+            "Upload First Document",
+            type=["pdf", "png", "jpg", "jpeg"],
+            key="file1"
+        )
 
     with col2:
-        st.metric("Authenticity Score", f"{authenticity_score}%")
-
-    # ---------------- FINDINGS ----------------
-
-    st.subheader("🔍 Suspicious Findings")
-
-    if found:
-        st.error(f"Suspicious keywords detected: {found}")
-    else:
-        st.success("No suspicious keywords found")
-
-    # ---------------- AI EXPLANATION ----------------
-
-    st.subheader("🤖 AI Explanation")
-
-    if found:
-        st.write(
-            f"""
-            The system identified suspicious indicators such as {found}.
-            These may indicate possible tampering, forgery,
-            or unauthorized modification in the uploaded document.
-            """
-        )
-    else:
-        st.write(
-            """
-            The uploaded document appears normal based on
-            OCR analysis, metadata validation,
-            and anomaly keyword scanning.
-            """
+        file2 = st.file_uploader(
+            "Upload Second Document",
+            type=["pdf", "png", "jpg", "jpeg"],
+            key="file2"
         )
 
-    # ---------------- UNDERWRITING INSIGHTS ----------------
+    if file1 and file2:
 
-    st.subheader("🏦 Underwriting Insights")
+        result1 = analyze_document(file1)
+        result2 = analyze_document(file2)
 
-    insights = {
-        "Document Type": "Financial / Legal",
-        "OCR Status": "Completed",
-        "Tampering Indicators": len(found),
-        "Verification Status": "Needs Review" if fraud_score > 50 else "Verified",
-        "Processing Status": "Completed"
-    }
+        st.subheader("📊 Comparison Dashboard")
 
-    insights_df = pd.DataFrame(
-        list(insights.items()),
-        columns=["Category", "Value"]
-    )
+        c1, c2 = st.columns(2)
 
-    st.table(insights_df)
+        with c1:
 
-    # ---------------- FINAL RECOMMENDATION ----------------
+            st.markdown("## Document 1")
 
-    st.subheader("✅ Final Recommendation")
+            st.metric(
+                "Fraud Score",
+                f"{result1['fraud_score']}%"
+            )
 
-    if fraud_score < 30:
-        recommendation = "Document can proceed for underwriting review"
-        st.success(recommendation)
+            st.metric(
+                "Authenticity",
+                f"{result1['authenticity_score']}%"
+            )
 
-    elif fraud_score < 70:
-        recommendation = "Manual verification recommended"
-        st.warning(recommendation)
+            st.write("### Findings")
+            st.write(result1["findings"])
 
-    else:
-        recommendation = "Potential fraud detected — escalate for investigation"
-        st.error(recommendation)
+        with c2:
 
-    # ---------------- DOWNLOAD REPORT ----------------
+            st.markdown("## Document 2")
 
-    st.subheader("📥 Download Fraud Report")
+            st.metric(
+                "Fraud Score",
+                f"{result2['fraud_score']}%"
+            )
 
-    report = f"""
-AI FRAUD DETECTION REPORT
-=========================
+            st.metric(
+                "Authenticity",
+                f"{result2['authenticity_score']}%"
+            )
 
-Fraud Risk Score: {fraud_score}%
-Authenticity Score: {authenticity_score}%
+            st.write("### Findings")
+            st.write(result2["findings"])
 
-Suspicious Findings:
-{found if found else "None"}
+        # DIFFERENCE CHECK
 
-Final Recommendation:
-{recommendation}
+        st.subheader("🔍 Text Difference Analysis")
 
-Extracted Text:
-{extracted_text[:2000]}
-"""
+        if result1["text"] == result2["text"]:
+            st.success("Documents appear identical")
+        else:
+            st.warning("Differences detected between documents")
 
-    report_bytes = BytesIO(report.encode())
+        st.subheader("📝 Document 1 Text")
+        st.write(result1["text"][:3000])
 
-    st.download_button(
-        label="Download Report",
-        data=report_bytes,
-        file_name="fraud_report.txt",
-        mime="text/plain"
-    )
-
-else:
-
-    st.info("Upload a PDF or image document to begin fraud analysis")
+        st.subheader("📝 Document 2 Text")
+        st.write(result2["text"][:3000])
