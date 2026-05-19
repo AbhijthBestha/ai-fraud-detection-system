@@ -3,8 +3,8 @@ import fitz
 import easyocr
 from PIL import Image
 import tempfile
-import random
 import pandas as pd
+from difflib import SequenceMatcher
 
 # ---------------- PAGE CONFIG ----------------
 
@@ -19,8 +19,6 @@ st.set_page_config(
 st.markdown("""
 <style>
 
-/* Main Background */
-
 .stApp {
     background: linear-gradient(
         135deg,
@@ -31,17 +29,8 @@ st.markdown("""
     color: white;
 }
 
-/* Main Container */
-
-.block-container {
-    padding-top: 2rem;
-    padding-bottom: 2rem;
-}
-
-/* Headings */
-
 h1 {
-    color: #ffffff;
+    color: white;
     font-size: 3.5rem !important;
     font-weight: 800;
     text-align: center;
@@ -49,21 +38,11 @@ h1 {
 
 h2, h3 {
     color: #38bdf8;
-    font-weight: 700;
 }
-
-/* Sidebar */
 
 section[data-testid="stSidebar"] {
-    background: linear-gradient(
-        180deg,
-        #111827,
-        #0f172a
-    );
-    border-right: 1px solid #334155;
+    background: #111827;
 }
-
-/* Buttons */
 
 .stButton > button {
     width: 100%;
@@ -78,56 +57,7 @@ section[data-testid="stSidebar"] {
     color: white;
     font-size: 18px;
     font-weight: 700;
-    transition: 0.3s;
-    box-shadow: 0px 0px 15px rgba(59,130,246,0.5);
 }
-
-.stButton > button:hover {
-    transform: scale(1.03);
-    background: linear-gradient(
-        90deg,
-        #3b82f6,
-        #06b6d4
-    );
-}
-
-/* Login Box */
-
-.login-box {
-    background: rgba(17, 24, 39, 0.9);
-    padding: 50px;
-    border-radius: 25px;
-    margin-top: 80px;
-    box-shadow: 0px 0px 30px rgba(0,0,0,0.5);
-    border: 1px solid #334155;
-}
-
-/* Cards */
-
-.metric-card {
-    background: linear-gradient(
-        145deg,
-        #1e293b,
-        #0f172a
-    );
-    padding: 25px;
-    border-radius: 20px;
-    text-align: center;
-    color: white;
-    border: 1px solid #334155;
-    box-shadow: 0px 0px 20px rgba(0,0,0,0.4);
-}
-
-/* Input Boxes */
-
-.stTextInput > div > div > input {
-    background-color: #1e293b;
-    color: white;
-    border-radius: 12px;
-    border: 1px solid #475569;
-}
-
-/* Upload Box */
 
 [data-testid="stFileUploader"] {
     background-color: #111827;
@@ -136,41 +66,12 @@ section[data-testid="stSidebar"] {
     border: 2px dashed #38bdf8;
 }
 
-/* Tabs */
-
-button[data-baseweb="tab"] {
-    background-color: #1e293b;
-    color: white;
-    border-radius: 10px;
-    margin-right: 10px;
-    padding: 10px 20px;
+.login-box {
+    background: rgba(17,24,39,0.9);
+    padding: 50px;
+    border-radius: 25px;
+    margin-top: 60px;
 }
-
-/* Progress Bar */
-
-.stProgress > div > div > div > div {
-    background: linear-gradient(
-        90deg,
-        #06b6d4,
-        #3b82f6
-    );
-}
-
-/* Tables */
-
-[data-testid="stDataFrame"] {
-    border-radius: 15px;
-    overflow: hidden;
-    border: 1px solid #334155;
-}
-
-/* Alerts */
-
-.stAlert {
-    border-radius: 15px;
-}
-
-/* Footer Hide */
 
 footer {
     visibility: hidden;
@@ -179,7 +80,7 @@ footer {
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- LOGIN SYSTEM ----------------
+# ---------------- LOGIN ----------------
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -196,24 +97,26 @@ if not st.session_state.logged_in:
     if st.button("Login"):
 
         if username == "admin" and password == "admin123":
+
             st.session_state.logged_in = True
             st.rerun()
 
         else:
-            st.error("Invalid credentials")
+
+            st.error("Invalid Credentials")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.stop()
 
-# ---------------- MAIN TITLE ----------------
+# ---------------- TITLE ----------------
 
 st.title("🛡️ AI Fraud Detection Dashboard")
 st.markdown("### Real-time Banking & Underwriting Intelligence")
 
 # ---------------- SIDEBAR ----------------
 
-st.sidebar.title("🏦 Banking Dashboard")
+st.sidebar.title("🏦 Dashboard")
 
 page = st.sidebar.radio(
     "Navigation",
@@ -235,18 +138,22 @@ suspicious_words = [
     "duplicate",
     "modified",
     "invalid",
-    "suspicious"
+    "suspicious",
+    "unauthorized"
 ]
 
-# ---------------- FUNCTION ----------------
+# ---------------- ANALYZE FUNCTION ----------------
 
 def analyze_document(uploaded_file):
 
     extracted_text = ""
 
+    # PDF FILE
+
     if uploaded_file.type == "application/pdf":
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+
             tmp.write(uploaded_file.read())
             pdf_path = tmp.name
 
@@ -255,7 +162,10 @@ def analyze_document(uploaded_file):
         metadata = doc.metadata
 
         for page in doc:
+
             extracted_text += page.get_text()
+
+    # IMAGE FILE
 
     else:
 
@@ -269,9 +179,14 @@ def analyze_document(uploaded_file):
             "type": "Image File"
         }
 
+    # ---------------- FRAUD DETECTION ----------------
+
     found = []
+    reasons = []
 
     highlighted_text = extracted_text
+
+    fraud_score = 0
 
     for word in suspicious_words:
 
@@ -279,12 +194,36 @@ def analyze_document(uploaded_file):
 
             found.append(word)
 
+            fraud_score += 20
+
+            reasons.append(f"Suspicious keyword found: {word}")
+
             highlighted_text = highlighted_text.replace(
                 word,
                 f"🔴 {word.upper()}"
             )
 
-    fraud_score = min(len(found) * 20 + random.randint(5, 15), 100)
+    # METADATA CHECKS
+
+    if metadata.get("producer"):
+
+        if "photoshop" in str(metadata.get("producer")).lower():
+
+            fraud_score += 30
+
+            reasons.append("Edited using Photoshop")
+
+    if metadata.get("creator"):
+
+        if "canva" in str(metadata.get("creator")).lower():
+
+            fraud_score += 20
+
+            reasons.append("Created using Canva")
+
+    # FINAL SCORES
+
+    fraud_score = min(fraud_score, 100)
 
     authenticity_score = 100 - fraud_score
 
@@ -294,14 +233,15 @@ def analyze_document(uploaded_file):
         "metadata": metadata,
         "fraud_score": fraud_score,
         "authenticity_score": authenticity_score,
-        "findings": found
+        "findings": found,
+        "reasons": reasons
     }
 
-# ---------------- SINGLE ANALYSIS ----------------
+# ---------------- SINGLE DOCUMENT ----------------
 
 if page == "Single Document Analysis":
 
-    st.subheader("📄 Upload Document")
+    st.subheader("📄 Upload Certificate or Document")
 
     uploaded_file = st.file_uploader(
         "Upload PDF or Image",
@@ -312,27 +252,44 @@ if page == "Single Document Analysis":
 
         result = analyze_document(uploaded_file)
 
-        # ALERT
+        # ALERTS
 
-        if result["fraud_score"] > 70:
-            st.error("🚨 HIGH RISK DOCUMENT DETECTED")
-        elif result["fraud_score"] > 30:
-            st.warning("⚠️ MEDIUM RISK DOCUMENT")
+        if result["fraud_score"] >= 50:
+
+            st.error("❌ Possible Forged Certificate Detected")
+
+        elif result["fraud_score"] >= 20:
+
+            st.warning("⚠ Suspicious Certificate")
+
         else:
-            st.success("✅ LOW RISK DOCUMENT")
+
+            st.success("✅ Certificate Appears Genuine")
 
         # METRICS
 
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            st.metric("Fraud Score", f"{result['fraud_score']}%")
+
+            st.metric(
+                "Fraud Score",
+                f"{result['fraud_score']}%"
+            )
 
         with col2:
-            st.metric("Authenticity", f"{result['authenticity_score']}%")
+
+            st.metric(
+                "Authenticity",
+                f"{result['authenticity_score']}%"
+            )
 
         with col3:
-            st.metric("Suspicious Indicators", len(result["findings"]))
+
+            st.metric(
+                "Indicators Found",
+                len(result["findings"])
+            )
 
         # PROGRESS
 
@@ -346,25 +303,50 @@ if page == "Single Document Analysis":
             "🤖 AI Analysis"
         ])
 
+        # TEXT
+
         with tab1:
+
             st.markdown(result["highlighted_text"])
+
+        # METADATA
 
         with tab2:
 
             metadata_df = pd.DataFrame({
                 "Property": list(result["metadata"].keys()),
-                "Value": list(result["metadata"].values())
+                "Value": [str(v) for v in result["metadata"].values()]
             })
 
             st.dataframe(metadata_df)
 
+        # AI ANALYSIS
+
         with tab3:
 
-            if result["findings"]:
+            st.subheader("🛡 Certificate Verification")
 
-                st.error(
-                    f"Suspicious keywords detected: {result['findings']}"
-                )
+            if result["fraud_score"] >= 50:
+
+                st.error("Forgery Indicators Detected")
+
+            elif result["fraud_score"] >= 20:
+
+                st.warning("Document Appears Suspicious")
+
+            else:
+
+                st.success("Document Appears Genuine")
+
+            # REASONS
+
+            if result["reasons"]:
+
+                st.subheader("🔍 Detection Reasons")
+
+                for reason in result["reasons"]:
+
+                    st.write("•", reason)
 
             else:
 
@@ -379,6 +361,7 @@ if page == "Compare Two Documents":
     col1, col2 = st.columns(2)
 
     with col1:
+
         file1 = st.file_uploader(
             "Upload First Document",
             type=["pdf", "png", "jpg", "jpeg"],
@@ -386,6 +369,7 @@ if page == "Compare Two Documents":
         )
 
     with col2:
+
         file2 = st.file_uploader(
             "Upload Second Document",
             type=["pdf", "png", "jpg", "jpeg"],
@@ -400,6 +384,8 @@ if page == "Compare Two Documents":
         st.subheader("📊 Comparison Dashboard")
 
         c1, c2 = st.columns(2)
+
+        # DOCUMENT 1
 
         with c1:
 
@@ -418,6 +404,8 @@ if page == "Compare Two Documents":
             st.write("### Findings")
             st.write(result1["findings"])
 
+        # DOCUMENT 2
+
         with c2:
 
             st.markdown("## Document 2")
@@ -435,14 +423,36 @@ if page == "Compare Two Documents":
             st.write("### Findings")
             st.write(result2["findings"])
 
-        # DIFFERENCE CHECK
+        # ---------------- COMPARISON ----------------
 
         st.subheader("🔍 Text Difference Analysis")
 
-        if result1["text"] == result2["text"]:
-            st.success("Documents appear identical")
+        similarity = SequenceMatcher(
+            None,
+            result1["text"],
+            result2["text"]
+        ).ratio()
+
+        similarity_percent = int(similarity * 100)
+
+        st.metric(
+            "Document Similarity",
+            f"{similarity_percent}%"
+        )
+
+        if similarity_percent > 90:
+
+            st.success("✅ Documents are Highly Similar")
+
+        elif similarity_percent > 60:
+
+            st.warning("⚠ Partial Differences Detected")
+
         else:
-            st.warning("Differences detected between documents")
+
+            st.error("❌ Documents are Very Different")
+
+        # DOCUMENT TEXTS
 
         st.subheader("📝 Document 1 Text")
         st.write(result1["text"][:3000])
